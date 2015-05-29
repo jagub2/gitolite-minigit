@@ -1,5 +1,7 @@
 # gitolite [![Build Status](https://secure.travis-ci.org/wingrunr21/gitolite.png)](http://travis-ci.org/wingrunr21/gitolite)
 
+### This gem is a fork from [jbox-gitolite](https://github.com/jbox-web/gitolite) gem, with [minigit](https://github.com/3ofcoins/minigit) support, instead of grit.
+
 This gem is designed to provide a Ruby interface to the [gitolite](https://github.com/sitaramc/gitolite) git backend system.  I am aiming to provide all management functionality that is available via the gitolite-admin repository (like SSH keys, repository permissions, etc)
 
 This gem can still have problems.  Please file an issue if you encounter a bug.  If you have a feature request, file one please.
@@ -10,7 +12,7 @@ This gem can still have problems.  Please file an issue if you encounter a bug. 
 * Allows for the bootstrapping of a gitolite-admin repository
 
 ## Requirements ##
-* Ruby 1.8.x or 1.9.x
+* Ruby 1.8.x or 1.9.x; also works on JRuby
 * a working [gitolite](https://github.com/sitaramc/gitolite) installation
 * the <tt>gitolite-admin</tt> repository checked out locally
 
