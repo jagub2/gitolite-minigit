@@ -15,7 +15,7 @@ module Gitolite
     # the gitolite-admin repository
     def initialize(path, options = {})
       @path = path
-      @gl_admin = Grit::Repo.new(path)
+      @gl_admin = MiniGit.new(path)
 
       @conf = options[:conf] || CONF
       @confdir = options[:confdir] || CONFDIR
@@ -30,40 +30,40 @@ module Gitolite
     #   conf
     #     gitolite.conf
     #   keydir
-    def self.bootstrap(path, options = {})
-      if self.is_gitolite_admin_repo?(path)
-        if options[:overwrite]
-          FileUtils.rm_rf(File.join(path, '*'))
-        else
-          return self.new(path)
-        end
-      end
+    #def self.bootstrap(path, options = {})
+    #  if self.is_gitolite_admin_repo?(path)
+    #    if options[:overwrite]
+    #      FileUtils.rm_rf(File.join(path, '*'))
+    #    else
+    #      return self.new(path)
+    #    end
+    #  end
 
-      FileUtils.mkdir_p([File.join(path,"conf"), File.join(path,"keydir")])
+    #  FileUtils.mkdir_p([File.join(path,"conf"), File.join(path,"keydir")])
 
-      options[:perm] ||= "RW+"
-      options[:refex] ||= ""
-      options[:user] ||= "git"
+    #  options[:perm] ||= "RW+"
+    #  options[:refex] ||= ""
+    #  options[:user] ||= "git"
 
-      c = Config.init
-      r = Config::Repo.new(options[:repo] || "gitolite-admin")
-      r.add_permission(options[:perm], options[:refex], options[:user])
-      c.add_repo(r)
-      config = c.to_file(File.join(path, "conf"))
+    #  c = Config.init
+    #  r = Config::Repo.new(options[:repo] || "gitolite-admin")
+    #  r.add_permission(options[:perm], options[:refex], options[:user])
+    #  c.add_repo(r)
+    #  config = c.to_file(File.join(path, "conf"))
 
-      repo = Grit::Repo.init(path)
-      Dir.chdir(path) do
-        repo.add(config)
-        repo.commit_index(options[:message] || "Config bootstrapped by the gitolite gem")
-      end
+    #  repo = Grit::Repo.init(path)
+    #  Dir.chdir(path) do
+    #    repo.add(config)
+    #    repo.commit_index(options[:message] || "Config bootstrapped by the gitolite gem")
+    #  end
 
-      self.new(path)
-    end
+    #  self.new(path)
+    #end
 
     #Writes all changed aspects out to the file system
     #will also stage all changes
     def save
-      Dir.chdir(@gl_admin.working_dir) do
+      Dir.chdir(@gl_admin.git_work_tree) do
         #Process config file (if loaded, i.e. may be modified)
         if @config
           new_conf = @config.to_file(@confdir)
@@ -76,7 +76,9 @@ module Gitolite
           keys = @ssh_keys.values.map{|f| f.map {|t| t.filename}}.flatten
 
           to_remove = (files - keys).map { |f| File.join(@keydir, f)}
-          @gl_admin.remove(to_remove)
+          if to_remove.length > 0
+            @gl_admin.rm(to_remove.join(" "))
+          end
 
           @ssh_keys.each_value do |key|
             #Write only keys from sets that has been modified
@@ -93,9 +95,9 @@ module Gitolite
     # git repo to HEAD and reloading the entire repository
     # Note that this will also delete all untracked files
     def reset!
-      Dir.chdir(@gl_admin.working_dir) do
-        @gl_admin.git.reset({:hard => true}, 'HEAD')
-        @gl_admin.git.clean({:d => true, :q => true, :f => true})
+      Dir.chdir(@gl_admin.git_work_tree) do
+        @gl_admin.reset(['--hard', 'HEAD'].join(" "))
+        @gl_admin.clean(['-d', '-q', '-f'].join(" "))
       end
       reload!
     end
@@ -114,8 +116,10 @@ module Gitolite
     #TODO: add the ability to specify the remote and branch
     #TODO: detect existance of origin instead of just dying
     def apply(commit_message = DEFAULT_COMMIT_MSG)
-      @gl_admin.commit_index(commit_message)
-      @gl_admin.git.push({}, "origin", "master")
+      Dir.chdir(@gl_admin.git_work_tree) do
+        @gl_admin.commit(["-m", "\"" + commit_message + "\""].join(" "))
+        @gl_admin.push(["origin", "master"].join(" "))
+      end
     end
 
     def save_and_apply(commit_message = DEFAULT_COMMIT_MSG)
@@ -129,8 +133,8 @@ module Gitolite
 
       reset! if options[:reset]
 
-      Dir.chdir(@gl_admin.working_dir) do
-        @gl_admin.git.pull({:rebase => options[:rebase]}, "origin", "master")
+      Dir.chdir(@gl_admin.git_work_tree) do
+        @gl_admin.pull((["--rebase", "origin", "master"].join(" ") if options[:rebase]) || "")
       end
 
       reload!
@@ -152,8 +156,8 @@ module Gitolite
     def self.is_gitolite_admin_repo?(dir)
       # First check if it is a git repository
       begin
-        Grit::Repo.new(dir)
-      rescue Grit::InvalidGitRepositoryError
+        MiniGit.new(dir)
+      rescue ArgumentError
         return false
       end
 

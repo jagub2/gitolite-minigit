@@ -1,5 +1,5 @@
 module Gitolite
-  require 'grit'
+  require 'minigit'
   require 'hashery'
   require 'gratr'
   require 'gitolite/ssh_key'
